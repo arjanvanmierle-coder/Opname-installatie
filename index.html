@@ -110,7 +110,7 @@ button.link{background:none;color:var(--mute);min-height:44px;font-weight:400;te
 <button id="bClear" class="link">Formulier leegmaken</button>
 </div>
 <p id="msg" role="status"></p>
-<div id="done" hidden role="dialog" aria-modal="true" aria-labelledby="doneT"><div class="box"><h2 id="doneT">Is het verstuurd?</h2><p>Controleer in WhatsApp dat het bericht met het Excel-bestand en de foto's is verzonden. Daarna maak je het formulier leeg voor de volgende inspectie.</p><button id="bYes">Ja, verstuurd. Nieuw formulier</button><button id="bNo" class="sec">Nee, terug naar het formulier</button></div></div>
+<div id="done" hidden role="dialog" aria-modal="true" aria-labelledby="doneT"><div class="box"><h2 id="doneT">Is het verstuurd?</h2><p id="doneP">Controleer in WhatsApp dat het bericht met het Excel-bestand en de foto's is verzonden. Daarna maak je het formulier leeg voor de volgende inspectie.</p><button id="bYes">Ja, verstuurd. Nieuw formulier</button><button id="bNo" class="sec">Nee, terug naar het formulier</button></div></div>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -190,10 +190,23 @@ return new File([arr],nm,{type:"application/vnd.openxmlformats-officedocument.sp
 }
 function files(){var x=xlsxFile(),a=photos.map(function(p){return p.file;});return x?[x].concat(a):a;}
 function canFiles(){var f=files();return f.length&&navigator.canShare&&navigator.canShare({files:f});}
+function photoFiles(){return photos.map(function(p){return p.file;});}
+function canPhotos(){var f=photoFiles();return f.length&&navigator.canShare&&navigator.canShare({files:f});}
+/* Chrome op Android laat .xlsx niet toe in de deel-knop: dan slaan we het Excel-bestand op in Downloads */
+var manualExcel=false;
+function download(file){
+var u=URL.createObjectURL(file),a=document.createElement("a");
+a.href=u;a.download=file.name;document.body.appendChild(a);a.click();document.body.removeChild(a);
+setTimeout(function(){URL.revokeObjectURL(u);},15000);}
 function shareAll(){
 var t=build(),data={title:subject(),text:t};
+manualExcel=false;
 if(canFiles()){data.files=files();}
-else{say("Bijlagen meesturen lukt hier niet; alleen de tekst wordt verstuurd.");}
+else{
+var x=xlsxFile();
+if(x){download(x);manualExcel=true;}
+if(canPhotos()){data.files=photoFiles();}
+say(x?"Excel is opgeslagen in Downloads. Voeg het in WhatsApp of Mail zelf toe als bijlage.":"Bijlagen meesturen lukt hier niet; alleen de tekst wordt verstuurd.");}
 function fail(en){copy(t);setTimeout(function(){say("Delen geblokkeerd"+(en?" ("+en+")":"")+". De tekst is gekopieerd; plak hem in Mail of WhatsApp.");},300);}
 if(!navigator.share){fail();return;}
 navigator.share(data).then(function(){askDone();}).catch(function(e){
@@ -205,10 +218,12 @@ navigator.share(data).then(function(){askDone();}).catch(function(e){
 }
 document.getElementById("bShare").onclick=shareAll;
 document.getElementById("bWa").onclick=function(){
-if(canFiles()){shareAll();return;}
+if(canFiles()||canPhotos()){shareAll();return;}
+var x=xlsxFile();if(x){download(x);say("Excel is opgeslagen in Downloads. Voeg het in WhatsApp toe via de paperclip.");}
 open("https://wa.me/?text="+encodeURIComponent(build()));};
 document.getElementById("bMail").onclick=function(){
-if(canFiles()){shareAll();return;}
+if(canFiles()||canPhotos()){shareAll();return;}
+var x=xlsxFile();if(x){download(x);say("Excel is opgeslagen in Downloads. Voeg het in je mail toe als bijlage.");}
 open("mailto:?subject="+encodeURIComponent(subject())+"&body="+encodeURIComponent(build()));};
 function copy(t){
 function ok(){say("Tekst gekopieerd. Plak hem in WhatsApp of e-mail.");}
@@ -227,7 +242,11 @@ fields.forEach(function(f){if(f.id!=="monteur")f.value="";});
 photos.forEach(function(p){URL.revokeObjectURL(p.url);});photos=[];drawThumbs();
 document.getElementById("datum").value=today();save();window.scrollTo(0,0);
 }
-function askDone(){document.getElementById("done").hidden=false;}
+function askDone(){
+document.getElementById("doneP").textContent=manualExcel
+?"Het Excel-bestand staat in Downloads en is niet automatisch meegestuurd. Controleer of je het zelf als bijlage hebt toegevoegd (WhatsApp: paperclip, Document) en dat het bericht is verzonden."
+:"Controleer in WhatsApp dat het bericht met het Excel-bestand en de foto's is verzonden. Daarna maak je het formulier leeg voor de volgende inspectie.";
+document.getElementById("done").hidden=false;}
 document.getElementById("bYes").onclick=function(){document.getElementById("done").hidden=true;wipe();say("Verstuurd. Het formulier is leeg voor de volgende inspectie.");};
 document.getElementById("bNo").onclick=function(){document.getElementById("done").hidden=true;};
 load();
