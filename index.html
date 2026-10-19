@@ -103,15 +103,12 @@ button.link{background:none;color:var(--mute);min-height:44px;font-weight:400;te
 </section>
 
 <div class="actions">
-<button id="bShare">Versturen als Excel…</button>
 <button id="bWa" class="wa">Excel via WhatsApp</button>
 <button id="bMail" class="sec">Excel via e-mail</button>
-<button id="bCopy" class="sec">Kopieer tekst</button>
-<button id="bSave" class="sec">Alleen Excel opslaan</button>
 <button id="bClear" class="link">Formulier leegmaken</button>
 </div>
 <p id="msg" role="status"></p>
-<p style="text-align:center;font-size:12px;color:var(--mute);margin:4px 0 0">versie 3 (19 okt)</p>
+<p style="text-align:center;font-size:12px;color:var(--mute);margin:4px 0 0">versie 4 (19 okt)</p>
 <div id="done" hidden role="dialog" aria-modal="true" aria-labelledby="doneT"><div class="box"><h2 id="doneT">Is het verstuurd?</h2><p id="doneP">Controleer in WhatsApp dat het bericht met het Excel-bestand en de foto's is verzonden. Daarna maak je het formulier leeg voor de volgende inspectie.</p><button id="bYes">Ja, verstuurd. Nieuw formulier</button><button id="bNo" class="sec">Nee, terug naar het formulier</button></div></div>
 </main>
 
@@ -173,13 +170,21 @@ drawThumbs();say(photos.length+" foto's toegevoegd.");
 };
 
 /* versturen */
-function xlsxFile(){
-if(!window.XLSX)return null;
-try{
+function masterAoa(){
 var cols=[["Installatie-ID","instid"],["Klant / locatie","klant"],["Adres",""],["Postcode",""],["Plaats",""],["Bouwjaar","bouwjaar"],["Waterbron","bron"],["Pomp","pompplek"],["Aantal kW","kw"],["Aansturing pomp","aanst"],["Leidingmateriaal","mat"],["Diameter hoofdleiding (mm)","dh"],["Diameter subleiding (mm)","dv"],["Sproeiers","sp"],["Kleppen","kl"],["Beregeningscomputer","pc"],["Datum laatste inspectie","datum"],["Werkbonnummer laatste inspectie","werkbon"],["Syntess installatienummer",""],["Opmerkingen","opm"]];
 var head=cols.map(function(c){return c[0];});
 var row=cols.map(function(c){if(!c[1])return "";var val=v(c[1]);return c[1]==="datum"?datumNl(val):val;});
-var ws=XLSX.utils.aoa_to_sheet([head,row]);ws["!cols"]=head.map(function(h){return {wch:Math.max(14,h.length)};});
+return [head,row];}
+function baseName(){return ("inspectie-"+(v("werkbon")||"beregening")).replace(/[^\w-]+/g,"-");}
+function csvFile(){
+if(!window.XLSX)return null;
+try{var ws=XLSX.utils.aoa_to_sheet(masterAoa());
+return new File(["\ufeff"+XLSX.utils.sheet_to_csv(ws,{FS:";"})],baseName()+".csv",{type:"text/csv"});}catch(e){return null;}
+}
+function xlsxFile(){
+if(!window.XLSX)return null;
+try{
+var aoa=masterAoa(),head=aoa[0];var ws=XLSX.utils.aoa_to_sheet(aoa);ws["!cols"]=head.map(function(h){return {wch:Math.max(14,h.length)};});
 var rows=[["Veld","Waarde"]];
 fields.forEach(function(f){var val=f.value.trim();if(f.id==="datum")val=datumNl(val);rows.push([f.getAttribute("data-l"),val]);});
 rows.push(["Foto's",String(photos.length)]);
@@ -190,13 +195,13 @@ var nm=("inspectie-"+(v("werkbon")||"beregening")).replace(/[^\w-]+/g,"-")+".xls
 return new File([arr],nm,{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
 }catch(e){return null;}
 }
-function files(){var x=xlsxFile(),a=photos.map(function(p){return p.file;});return x?[x].concat(a):a;}
-var android=/Android/i.test(navigator.userAgent);
-function canFiles(){if(android)return false;var f=files();return f.length&&navigator.canShare&&navigator.canShare({files:f});}
+function files(){var x=android?csvFile():xlsxFile(),a=photos.map(function(p){return p.file;});return x?[x].concat(a):a;}
+function canFiles(){var f=files();return f.length&&navigator.canShare&&navigator.canShare({files:f});}
 function photoFiles(){return photos.map(function(p){return p.file;});}
 function canPhotos(){var f=photoFiles();return f.length&&navigator.canShare&&navigator.canShare({files:f});}
 /* Chrome op Android laat .xlsx niet toe in de deel-knop: dan slaan we het Excel-bestand op in Downloads */
 var manualExcel=false;
+var android=/Android/i.test(navigator.userAgent);
 function download(file){
 var u=URL.createObjectURL(file),a=document.createElement("a");
 a.href=u;a.download=file.name;document.body.appendChild(a);a.click();document.body.removeChild(a);
@@ -223,7 +228,6 @@ pr.then(function(){askDone();}).catch(function(e){
  else{fail(en);}
 });
 }
-document.getElementById("bShare").onclick=shareAll;
 document.getElementById("bWa").onclick=function(){
 if(canFiles()||canPhotos()){shareAll();return;}
 var x=xlsxFile();if(x){download(x);say("Excel is opgeslagen in Downloads. Voeg het in WhatsApp toe via de paperclip.");}
@@ -237,8 +241,6 @@ function ok(){say("Tekst gekopieerd. Plak hem in WhatsApp of e-mail.");}
 function fb(){var a=document.createElement("textarea");a.value=t;document.body.appendChild(a);a.select();try{document.execCommand("copy");ok();}catch(e){say("Kopiëren lukte niet.");}document.body.removeChild(a);}
 if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(ok,fb);}else{fb();}
 }
-document.getElementById("bSave").onclick=function(){var x=xlsxFile();if(x){download(x);say("Excel opgeslagen in Downloads.");}else{say("Excel maken lukte niet. Controleer de internetverbinding en probeer opnieuw.");}};
-document.getElementById("bCopy").onclick=function(){copy(build());};
 document.getElementById("bClear").onclick=function(){
 if(!confirm("Alles leegmaken, inclusief foto's?"))return;
 fields.forEach(function(f){f.value="";});
